@@ -1,54 +1,37 @@
 import streamlit as st
-import face_recognition
 import cv2
+import mediapipe as mp
 import numpy as np
-import os
 
-st.title("نظام التعرف على الوجوه الذكي")
+# إعدادات ميديا بايب
+mp_face_detection = mp.solutions.face_detection
+mp_drawing = mp.solutions.drawing_utils
 
-# قائمة الصور والأسماء بناءً على الملفات في مستودعك
-images_files = [
-    {"name": "Ali", "file": "Ali.jpg"},
-    {"name": "Bouhalfa", "file": "Bouhalfa.jpg"},
-    {"name": "Kamel", "file": "Kamel.jpg"},
-    {"name": "Mabrouk", "file": "Mabrouk.jpg"},
-    {"name": "Salim", "file": "Salim.jpg"},
-    {"name": "Youcef", "file": "Youcef.jpg"}
-]
+st.title("ماسح الوجه الذكي (نسخة سريعة)")
+st.write("هذا النظام يستخدم تقنية Google MediaPipe للتعرف السريع")
 
-known_face_encodings = []
-known_face_names = []
-
-# تحميل الصور وتشفيرها
-for person in images_files:
-    if os.path.exists(person["file"]):
-        image = face_recognition.load_image_file(person["file"])
-        encoding = face_recognition.face_encodings(image)[0]
-        known_face_encodings.append(encoding)
-        known_face_names.append(person["name"])
-
-st.success(f"تم تحميل {len(known_face_names)} وجوه معروفة بنجاح!")
-
-# خيار استخدام الكاميرا
-img_file_buffer = st.camera_input("التقط صورة للتعرف على صاحبها")
+# تشغيل الكاميرا
+img_file_buffer = st.camera_input("وجه الكاميرا نحو وجهك")
 
 if img_file_buffer is not None:
-    # تحويل الصورة إلى تنسيق يفهمه OpenCV
+    # تحويل الصورة
     bytes_data = img_file_buffer.getvalue()
     cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-    rgb_img = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
+    
+    # معالجة الصورة للبحث عن الوجوه
+    with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+        results = face_detection.process(cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB))
 
-    # البحث عن الوجوه في الصورة الملتقطة
-    face_locations = face_recognition.face_locations(rgb_img)
-    face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
-
-    for face_encoding in face_encodings:
-        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-        name = "شخص غير معروف"
-
-        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-        best_match_index = np.argmin(face_distances)
-        if matches[best_match_index]:
-            name = known_face_names[best_match_index]
-
-        st.write(f"النتيجة: **{name}**")
+        if results.detections:
+            for detection in results.detections:
+                # رسم مربع حول الوجه
+                mp_drawing.draw_detection(cv2_img, detection)
+                
+                # حساب درجة الثقة
+                score = detection.score[0]
+                st.success(f"تم اكتشاف وجه بنسبة ثقة: {score:.2f}")
+            
+            # عرض الصورة مع تحديد الوجه
+            st.image(cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB), caption="تمت المعالجة بنجاح")
+        else:
+            st.warning("لم يتم العثور على وجه، حاول التقريب من الكاميرا")
