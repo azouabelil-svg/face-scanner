@@ -3,35 +3,32 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-# إعدادات ميديا بايب
+# استدعاء أدوات ميديا بايب
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
 
-st.title("ماسح الوجه الذكي (نسخة سريعة)")
-st.write("هذا النظام يستخدم تقنية Google MediaPipe للتعرف السريع")
+st.title("نظام التعرف السريع على الوجوه 🚀")
 
 # تشغيل الكاميرا
-img_file_buffer = st.camera_input("وجه الكاميرا نحو وجهك")
+img_file_buffer = st.camera_input("التقط صورة")
 
 if img_file_buffer is not None:
-    # تحويل الصورة
-    bytes_data = img_file_buffer.getvalue()
-    cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+    # تحويل الصورة إلى مصفوفة نيمباي
+    file_bytes = np.asarray(bytearray(img_file_buffer.read()), dtype=np.uint8)
+    frame = cv2.imdecode(file_bytes, 1)
     
-    # معالجة الصورة للبحث عن الوجوه
+    # تحويل اللون من BGR إلى RGB
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # بدء عملية الاكتشاف
     with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
-        results = face_detection.process(cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB))
+        results = face_detection.process(rgb_frame)
 
         if results.detections:
             for detection in results.detections:
-                # رسم مربع حول الوجه
-                mp_drawing.draw_detection(cv2_img, detection)
-                
-                # حساب درجة الثقة
-                score = detection.score[0]
-                st.success(f"تم اكتشاف وجه بنسبة ثقة: {score:.2f}")
+                mp_drawing.draw_detection(frame, detection)
             
-            # عرض الصورة مع تحديد الوجه
-            st.image(cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB), caption="تمت المعالجة بنجاح")
+            st.success(f"تم اكتشاف {len(results.detections)} وجه!")
+            st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), caption="النتيجة")
         else:
-            st.warning("لم يتم العثور على وجه، حاول التقريب من الكاميرا")
+            st.warning("لم يتم العثور على أي وجه في الصورة")
